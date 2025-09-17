@@ -1,25 +1,7 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GoogleGenAI, Chat, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { ChatMessage, User } from '../types';
 import { SendIcon, RestartIcon, LogoutIcon } from './icons/Icons';
 
-interface ChatScreenProps {
-  user: User | null;
-  characterImageUrl: string;
-  systemInstruction: string;
-  initialMessages: ChatMessage[];
-  onRestart: () => void;
-  onLogout: () => void;
-}
-
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
 const DAILY_LIMIT = 20;
 
 const TypingIndicator: React.FC = () => (
@@ -30,7 +12,14 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-const ChatScreen: React.FC<ChatScreenProps> = ({
+const ChatScreen: React.FC<{
+  user: User | null;
+  characterImageUrl: string;
+  systemInstruction: string;
+  initialMessages: ChatMessage[];
+  onRestart: () => void;
+  onLogout: () => void;
+}> = ({
   user,
   characterImageUrl,
   systemInstruction,
@@ -40,7 +29,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
-  const [chat, setChat] = useState<Chat | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
@@ -64,35 +52,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, []);
 
-  useEffect(() => {
-    const chatInstance = ai.chats.create({
-      model: 'gemini-2.5-flash',
-      config: {
-        systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 0 },
-        safetySettings: [
-            {
-                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            },
-            {
-                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            },
-        ],
-      },
-    });
-    setChat(chatInstance);
-  }, [systemInstruction]);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -103,7 +62,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
 
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !chat || isLoading || limitReached) return;
+    if (!input.trim() || isLoading || limitReached) return;
 
     const newCount = dailyCount + 1;
     
@@ -113,7 +72,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
       text: input,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
+    const previousMessages = [...messages, userMessage];
+
+    setMessages(previousMessages);
     setDailyCount(newCount);
     localStorage.setItem('egogo-chat-count', newCount.toString());
     setInput('');
@@ -126,16 +88,38 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     ]);
 
     try {
-      const result = await chat.sendMessageStream({ message: input });
-      let text = '';
-      for await (const chunk of result) {
-        text += chunk.text;
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === aiMessageId ? { ...msg, text } : msg
-          )
-        );
-      }
+       const response = await fetch('/api/chat', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           history: previousMessages.slice(0, -1), // Send history without the latest AI placeholder
+           message: currentInput,
+           systemInstruction,
+           stream: true,
+         }),
+       });
+
+       if (!response.body) {
+         throw new Error("Response body is null");
+       }
+       
+       const reader = response.body.getReader();
+       const decoder = new TextDecoder();
+       let fullText = '';
+
+       while (true) {
+         const { value, done } = await reader.read();
+         if (done) break;
+
+         const chunk = decoder.decode(value, { stream: true });
+         fullText += chunk;
+         setMessages((prev) =>
+           prev.map((msg) =>
+             msg.id === aiMessageId ? { ...msg, text: fullText } : msg
+           )
+         );
+       }
+
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages((prev) =>
@@ -157,7 +141,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         }, 500);
       }
     }
-  }, [input, chat, isLoading, dailyCount, limitReached]);
+  }, [input, isLoading, dailyCount, limitReached, messages, systemInstruction]);
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FA]">
