@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import type { PersonaData, User } from '../types';
+import type { PersonaFormData, User } from '../types';
 import { ALL_KEYWORDS } from '../constants';
+import { BackIcon } from './icons/Icons';
 
 interface PersonaCreationProps {
   user: User | null;
-  onSubmit: (data: PersonaData) => void;
+  onSubmit: (data: PersonaFormData) => void;
+  onGoBack: () => void;
   error: string | null;
 }
 
 interface FormFieldProps {
-  id: keyof Omit<PersonaData, 'keywords'>;
+  id: keyof Omit<PersonaFormData, 'keywords'>;
   label: string;
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -38,8 +40,8 @@ const FormField: React.FC<FormFieldProps> = ({ id, label, value, onChange, maxLe
   </div>
 );
 
-const PersonaCreation: React.FC<PersonaCreationProps> = ({ user, onSubmit, error }) => {
-  const [formData, setFormData] = useState<Omit<PersonaData, 'keywords'>>({
+const PersonaCreation: React.FC<PersonaCreationProps> = ({ user, onSubmit, onGoBack, error }) => {
+  const [formData, setFormData] = useState<Omit<PersonaFormData, 'keywords'>>({
     personality: '',
     tone: '',
     interests: '',
@@ -86,10 +88,17 @@ const PersonaCreation: React.FC<PersonaCreationProps> = ({ user, onSubmit, error
   ];
 
   return (
-    <div className="w-full max-w-4xl p-4 md:p-8">
-      <div className="text-center mb-10">
+    <div className="w-full max-w-4xl p-4 md:p-8 relative">
+       <button 
+          onClick={onGoBack} 
+          className="absolute top-4 left-4 md:top-8 md:left-8 flex items-center gap-2 text-lg text-gray-500 hover:text-[#3D405B] transition-colors"
+        >
+          <BackIcon /> 홈으로
+        </button>
+
+      <div className="text-center mb-10 mt-12 md:mt-0">
         <h1 className="text-6xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#FF8FAB] to-[#A2D2FF]">
-          {user ? `${user.name}님의 에고고` : '에고고'}
+          새로운 에고 만들기
         </h1>
         <p className="text-[#7A7C8B] mt-3 text-xl">AI 페르소나와 대화하며 나를 발견하는 시간</p>
       </div>

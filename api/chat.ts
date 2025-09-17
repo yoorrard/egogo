@@ -1,5 +1,6 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import type { ChatMessage } from '../types';
+import { kv } from '@vercel/kv';
+import type { ChatMessage, UserData } from '../types';
 
 const API_KEY = process.env.API_KEY;
 
@@ -26,49 +27,50 @@ export default async function handler(req: Request) {
     }
 
     try {
-        const { history, message, systemInstruction, stream: shouldStream } = await req.json();
+        const { history, message, userEmail, personaId } = await req.json();
 
-        // Format history for the Gemini API
+        if (!userEmail || !personaId) {
+            return new Response(JSON.stringify({ error: 'User email and personaId are required.' }), { status: 400 });
+        }
+        
+        let userData: UserData | null = await kv.get(userEmail);
+        if (!userData) {
+            return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 });
+        }
+
+        const activePersona = userData.personas.find(p => p.id === personaId);
+        if (!activePersona) {
+            return new Response(JSON.stringify({ error: 'Persona not found.' }), { status: 404 });
+        }
+
+        if (userData.chatEnergy <= 0) {
+            return new Response(JSON.stringify({ error: 'No chat energy left for today.' }), { status: 429 });
+        }
+
+        userData.chatEnergy -= 1;
+        await kv.set(userEmail, userData);
+
         const contents = history.map((msg: ChatMessage) => ({
             role: msg.sender === 'user' ? 'user' : 'model',
             parts: [{ text: msg.text }]
         }));
-        // Add the new user message
         contents.push({ role: 'user', parts: [{ text: message }] });
-
-        if (shouldStream === false) {
-             const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents,
-                config: {
-                    systemInstruction,
-                    thinkingConfig: { thinkingBudget: 0 },
-                    safetySettings,
-                },
-             });
-             return new Response(JSON.stringify({ text: response.text }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
         
         const stream = await ai.models.generateContentStream({
             model: 'gemini-2.5-flash',
             contents,
             config: {
-                systemInstruction,
+                systemInstruction: activePersona.persona.systemInstruction,
                 thinkingConfig: { thinkingBudget: 0 },
                 safetySettings,
             },
         });
 
-        // Create a new ReadableStream to pipe the Gemini stream through
         const readableStream = new ReadableStream({
             async start(controller) {
                 for await (const chunk of stream) {
                     const text = chunk.text;
                     if (text) {
-                        // Encode the text chunk and enqueue it
                         controller.enqueue(new TextEncoder().encode(text));
                     }
                 }

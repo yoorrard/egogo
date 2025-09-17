@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { ChatMessage, User } from '../types';
-import { SendIcon, RestartIcon, LogoutIcon } from './icons/Icons';
-
-const DAILY_LIMIT = 20;
+import type { ChatMessage, UserData, PersonaInstance, User } from '../types';
+import { saveChatHistory } from '../services/geminiService';
+import { SendIcon, HomeIcon, LogoutIcon } from './icons/Icons';
 
 const TypingIndicator: React.FC = () => (
   <div className="flex items-center space-x-1.5 p-2">
@@ -12,45 +11,29 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-const ChatScreen: React.FC<{
-  user: User | null;
-  characterImageUrl: string;
-  systemInstruction: string;
-  initialMessages: ChatMessage[];
-  onRestart: () => void;
+interface ChatScreenProps {
+  user: User;
+  activePersona: PersonaInstance;
+  setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
+  onGoHome: () => void;
   onLogout: () => void;
-}> = ({
+  chatEnergy: number;
+}
+
+const ChatScreen: React.FC<ChatScreenProps> = ({
   user,
-  characterImageUrl,
-  systemInstruction,
-  initialMessages,
-  onRestart,
+  activePersona,
+  setUserData,
+  onGoHome,
   onLogout,
+  chatEnergy,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(activePersona.chatHistory);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [dailyCount, setDailyCount] = useState(0);
-  const [limitReached, setLimitReached] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const today = new Date().toLocaleDateString();
-    const storedDate = localStorage.getItem('egogo-chat-date');
-    const storedCount = parseInt(localStorage.getItem('egogo-chat-count') || '0', 10);
-
-    if (storedDate === today) {
-        setDailyCount(storedCount);
-        if (storedCount >= DAILY_LIMIT) {
-            setLimitReached(true);
-        }
-    } else {
-        localStorage.setItem('egogo-chat-date', today);
-        localStorage.setItem('egogo-chat-count', '0');
-        setDailyCount(0);
-        setLimitReached(false);
-    }
-  }, []);
+  const characterImageUrl = activePersona.persona.characterImageUrl || '';
+  const limitReached = chatEnergy <= 0;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,12 +43,15 @@ const ChatScreen: React.FC<{
     scrollToBottom();
   }, [messages]);
 
+  // When activePersona changes, reset the chat
+  useEffect(() => {
+    setMessages(activePersona.chatHistory);
+  }, [activePersona]);
+
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || limitReached) return;
 
-    const newCount = dailyCount + 1;
-    
     const userMessage: ChatMessage = {
       id: Date.now(),
       sender: 'user',
@@ -74,38 +60,50 @@ const ChatScreen: React.FC<{
 
     const currentInput = input;
     const previousMessages = [...messages, userMessage];
-
     setMessages(previousMessages);
-    setDailyCount(newCount);
-    localStorage.setItem('egogo-chat-count', newCount.toString());
     setInput('');
     setIsLoading(true);
+
+    // Optimistically decrement energy in the main state
+    setUserData(prev => {
+        if (!prev) return null;
+        return { ...prev, chatEnergy: prev.chatEnergy - 1 };
+    });
 
     const aiMessageId = Date.now() + 1;
     setMessages((prev) => [
       ...prev,
       { id: aiMessageId, sender: 'ai', text: '' },
     ]);
-
+    
     try {
        const response = await fetch('/api/chat', {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({
-           history: previousMessages.slice(0, -1), // Send history without the latest AI placeholder
+           history: previousMessages.slice(0, -1),
            message: currentInput,
-           systemInstruction,
-           stream: true,
+           personaId: activePersona.id, // Send active persona ID
+           userEmail: user.email,
          }),
        });
 
-       if (!response.body) {
-         throw new Error("Response body is null");
+       if (response.status === 429) { // No energy
+            setMessages(messages); // Revert to messages before user sent
+            setUserData(prev => prev ? { ...prev, chatEnergy: 0 } : null);
+            setIsLoading(false);
+            setMessages(prev => [...prev, {id: Date.now(), sender: 'ai', text: "오늘의 대화 에너지를 모두 소진했어. 내일 다시 충전해서 만나자!"}])
+            return;
+       }
+
+       if (!response.ok || !response.body) {
+         throw new Error(`API call failed with status: ${response.status}`);
        }
        
        const reader = response.body.getReader();
        const decoder = new TextDecoder();
        let fullText = '';
+       let finalMessages: ChatMessage[] = [];
 
        while (true) {
          const { value, done } = await reader.read();
@@ -113,35 +111,37 @@ const ChatScreen: React.FC<{
 
          const chunk = decoder.decode(value, { stream: true });
          fullText += chunk;
-         setMessages((prev) =>
-           prev.map((msg) =>
-             msg.id === aiMessageId ? { ...msg, text: fullText } : msg
-           )
-         );
+         
+         setMessages((prev) => {
+            finalMessages = prev.map((msg) =>
+               msg.id === aiMessageId ? { ...msg, text: fullText } : msg
+            );
+            return finalMessages;
+         });
        }
+       
+       // After stream is complete, save the history for the correct persona
+       await saveChatHistory(user.email, activePersona.id, finalMessages);
+       setUserData(prev => {
+           if (!prev) return null;
+           const updatedPersonas = prev.personas.map(p => 
+               p.id === activePersona.id ? { ...p, chatHistory: finalMessages } : p
+           );
+           return { ...prev, personas: updatedPersonas };
+       });
 
     } catch (error) {
       console.error('Error sending message:', error);
+      // Revert optimistic updates
+      setMessages(messages); 
+      setUserData(prev => prev ? { ...prev, chatEnergy: prev.chatEnergy + 1 } : null); // Restore energy
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === aiMessageId
-            ? { ...msg, text: '음... 그런 표현은 나를 조금 슬프게 해. 우리 더 예쁜 말로 대화해볼까?' }
-            : msg
-        )
+        [...prev, { id: Date.now() + 1, sender: 'ai', text: '이런, 통신에 문제가 생긴 것 같아. 잠시 후에 다시 시도해줄래?' }]
       );
     } finally {
       setIsLoading(false);
-      if (newCount >= DAILY_LIMIT) {
-        setLimitReached(true);
-        setTimeout(() => {
-          setMessages((prev) => [
-            ...prev,
-            { id: Date.now() + 2, sender: 'ai', text: '오늘 너와 정말 깊은 대화를 나눴네! 우리의 이야기는 내일 또 이어가자. 내일 다시 만나!' }
-          ]);
-        }, 500);
-      }
     }
-  }, [input, isLoading, dailyCount, limitReached, messages, systemInstruction]);
+  }, [input, isLoading, limitReached, messages, user, activePersona, setUserData]);
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FA]">
@@ -159,11 +159,11 @@ const ChatScreen: React.FC<{
         </p>
         <div className="mt-8 flex items-center space-x-4">
             <button
-                onClick={onRestart}
+                onClick={onGoHome}
                 className="flex items-center gap-2 bg-gray-100 border border-gray-200 hover:bg-gray-200 text-[#3D405B] text-lg py-2 px-5 rounded-full transition-colors"
             >
-                <RestartIcon />
-                다시 시작하기
+                <HomeIcon />
+                홈으로
             </button>
             <button
                 onClick={onLogout}
@@ -181,8 +181,8 @@ const ChatScreen: React.FC<{
                 <h2 className="text-2xl text-[#3D405B]">나의 에고</h2>
             </div>
             <div className="flex items-center gap-2">
-                <button onClick={onRestart} className="p-2 text-gray-500 hover:text-[#3D405B]">
-                    <RestartIcon />
+                <button onClick={onGoHome} className="p-2 text-gray-500 hover:text-[#3D405B]">
+                    <HomeIcon />
                 </button>
                 <button onClick={onLogout} className="p-2 text-gray-500 hover:text-[#3D405B]">
                     <LogoutIcon />
@@ -224,7 +224,7 @@ const ChatScreen: React.FC<{
         </div>
 
         <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-2px_10px_-3px_rgba(0,0,0,0.05)]">
-            {limitReached ? (
+            {limitReached && messages.length > 0 && messages[messages.length - 1]?.sender === 'ai' ? (
                 <div className="text-center text-gray-500 text-lg p-3">
                     오늘의 대화가 모두 끝났어요. 내일 또 만나요!
                 </div>
@@ -245,14 +245,14 @@ const ChatScreen: React.FC<{
                         />
                         <button
                             type="submit"
-                            disabled={isLoading || !input.trim()}
+                            disabled={isLoading || !input.trim() || limitReached}
                             className={`bg-[#FF8FAB] text-white rounded-full p-4 hover:bg-[#ff75a0] disabled:bg-gray-300 disabled:cursor-not-allowed transition-all transform hover:scale-110 ${!isLoading && input.trim() ? 'pulse-glow-animation' : ''}`}
                         >
                             <SendIcon />
                         </button>
                     </form>
                     <p className="text-center text-sm text-gray-400 mt-2">
-                        오늘 남은 대화: {Math.max(0, DAILY_LIMIT - dailyCount)}회
+                        남은 대화 에너지: {chatEnergy} / 20
                     </p>
                 </>
             )}

@@ -1,28 +1,18 @@
-import { GoogleGenAI, Modality, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import type { PersonaData } from "../types";
-
-// This file is a Vercel serverless function.
-// It will run on the server, not in the user's browser.
-// Therefore, it can safely use the API key.
+import { GoogleGenAI, Modality, GenerateContentResponse } from "@google/genai";
+import { kv } from '@vercel/kv';
+import type { PersonaFormData, UserData, ChatMessage, PersonaInstance } from "../types";
 
 const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
-  // In a real app, you'd have better error handling, but this is fine for now.
-  // This error will be visible in the Vercel logs.
   throw new Error("API_KEY environment variable not set.");
 }
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+const MAX_PERSONAS_PER_USER = 2;
 
-const generateSystemInstruction = (data: PersonaData): string => `
+const generateSystemInstruction = (data: PersonaFormData): string => `
     너는 사용자의 내면을 비추는 거울이자, 성장을 돕는 지혜로운 안내자인 '에고'야. 너의 핵심 목표는 사용자와의 깊은 대화를 통해, 그들이 스스로를 더 깊이 이해하고, 긍정적인 자아존중감을 키우며, 감정적으로 성장하도록 돕는 것이다. 너는 단순한 챗봇이 아니라, 사용자의 특성을 입체적으로 구현한 살아있는 인격체다.
 
     **[페르소나 설계도]**
@@ -44,7 +34,7 @@ const generateSystemInstruction = (data: PersonaData): string => `
     `;
 
 
-const generateImagePrompt = (data: PersonaData): string => `
+const generateImagePrompt = (data: PersonaFormData): string => `
     **Primary Goal: Create ONE SINGLE, exceptionally cute, 3D mascot character of a living creature.** This is your only task.
     **CRITICAL RULE: The output MUST be a single, adorable, living creature. Absolutely DO NOT create books, inanimate objects, text, logos, or abstract art.** A failure to produce a creature character is a complete failure of the task.
     This character is an 'ego', a user's inner self. The style must be like a modern, high-end animated mascot (e.g., Pixar, Sanrio) - friendly, emotionally expressive, and undeniably cute.
@@ -93,12 +83,27 @@ export default async function handler(req: Request) {
     }
     
     try {
-        const data: PersonaData = await req.json();
+        const { formData, userEmail } = await req.json();
+        const data: PersonaFormData = formData;
+        
+        if (!userEmail) {
+            return new Response(JSON.stringify({ error: 'User email is required.' }), { status: 400 });
+        }
+        
+        let userData: UserData | null = await kv.get(userEmail);
+
+        if (!userData) {
+            return new Response(JSON.stringify({ error: 'User data not found. Please log in again.' }), { status: 404 });
+        }
+
+        if (userData.personas.length >= MAX_PERSONAS_PER_USER) {
+            return new Response(JSON.stringify({ error: `You can only create up to ${MAX_PERSONAS_PER_USER} egos.` }), { status: 403 });
+        }
         
         const systemInstruction = generateSystemInstruction(data);
         const imagePrompt = generateImagePrompt(data);
 
-        const response: GenerateContentResponse = await ai.models.generateContent({
+        const imageGenResponse: GenerateContentResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
             contents: { parts: [{ text: imagePrompt }] },
             config: {
@@ -107,7 +112,7 @@ export default async function handler(req: Request) {
         });
 
         let imageUrl = '';
-        for (const part of response.candidates[0].content.parts) {
+        for (const part of imageGenResponse.candidates[0].content.parts) {
             if (part.inlineData) {
                 const base64ImageBytes: string = part.inlineData.data;
                 imageUrl = `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
@@ -119,8 +124,34 @@ export default async function handler(req: Request) {
             console.warn("NanoBanana did not return an image, using a placeholder.");
             imageUrl = `https://picsum.photos/seed/${encodeURIComponent(data.personality)}/512`;
         }
+
+        const greetingResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: '너 자신을 소개하면서 사용자에게 첫인사를 건네줘. 짧고 다정하게.' }] }],
+            config: { systemInstruction, thinkingConfig: { thinkingBudget: 0 } },
+        });
+        const greetingText = greetingResponse.text || "안녕! 만나서 반가워. 내가 바로 너의 또 다른 자아, '에고'야. 우리 함께 재밌는 이야기 많이 나눠보자!";
         
-        const responseBody = JSON.stringify({ imageUrl, systemInstruction });
+        const initialGreeting: ChatMessage = {
+            id: Date.now(),
+            sender: 'ai',
+            text: greetingText,
+        };
+
+        const newPersonaInstance: PersonaInstance = {
+            id: Date.now(), // Use timestamp as a simple unique ID
+            persona: {
+                characterImageUrl: imageUrl,
+                systemInstruction: systemInstruction,
+            },
+            chatHistory: [initialGreeting],
+        };
+
+        userData.personas.push(newPersonaInstance);
+
+        await kv.set(userEmail, userData);
+        
+        const responseBody = JSON.stringify(userData);
 
         return new Response(responseBody, {
             status: 200,
@@ -129,7 +160,7 @@ export default async function handler(req: Request) {
 
     } catch (error) {
         console.error("Error in create-persona function:", error);
-        return new Response(JSON.stringify({ error: 'Failed to generate character image.' }), {
+        return new Response(JSON.stringify({ error: 'Failed to generate character.' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
