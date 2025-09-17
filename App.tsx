@@ -1,18 +1,34 @@
 import React, { useState, useCallback } from 'react';
-import type { PersonaData, ChatMessage } from './types';
+import type { PersonaData, ChatMessage, User } from './types';
 import { AppState } from './types';
+import LoginScreen from './components/LoginScreen';
 import PersonaCreation from './components/PersonaCreation';
 import LoadingScreen from './components/LoadingScreen';
 import ChatScreen from './components/ChatScreen';
 import { createPersona, generateInitialGreeting } from './services/geminiService';
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
   const [appState, setAppState] = useState<AppState>(AppState.CREATION);
   const [personaData, setPersonaData] = useState<PersonaData | null>(null);
   const [characterImageUrl, setCharacterImageUrl] = useState<string>('');
   const [systemInstruction, setSystemInstruction] = useState<string>('');
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+  };
+  
+  const handleLogout = () => {
+    setUser(null);
+    setAppState(AppState.CREATION);
+    setPersonaData(null);
+    setCharacterImageUrl('');
+    setSystemInstruction('');
+    setInitialMessages([]);
+    setError(null);
+  };
 
   const handlePersonaCreate = useCallback(async (data: PersonaData) => {
     setAppState(AppState.LOADING);
@@ -52,6 +68,10 @@ const App: React.FC = () => {
   }
 
   const renderContent = () => {
+    if (!user) {
+      return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    }
+
     switch (appState) {
       case AppState.LOADING:
         return <LoadingScreen />;
@@ -59,19 +79,21 @@ const App: React.FC = () => {
         if (personaData && characterImageUrl && systemInstruction) {
           return (
             <ChatScreen
+              user={user}
               characterImageUrl={characterImageUrl}
               systemInstruction={systemInstruction}
               initialMessages={initialMessages}
               onRestart={handleRestart}
+              onLogout={handleLogout}
             />
           );
         }
         // Fallback to creation if data is missing
         setAppState(AppState.CREATION);
-        return <PersonaCreation onSubmit={handlePersonaCreate} error={error} />;
+        return <PersonaCreation user={user} onSubmit={handlePersonaCreate} error={error} />;
       case AppState.CREATION:
       default:
-        return <PersonaCreation onSubmit={handlePersonaCreate} error={error} />;
+        return <PersonaCreation user={user} onSubmit={handlePersonaCreate} error={error} />;
     }
   };
 

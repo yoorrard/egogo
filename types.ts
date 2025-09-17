@@ -15,6 +15,12 @@ export interface ChatMessage {
   text: string;
 }
 
+export interface User {
+  name: string;
+  email: string;
+  picture: string;
+}
+
 export enum AppState {
   CREATION = 'CREATION',
   LOADING = 'LOADING',

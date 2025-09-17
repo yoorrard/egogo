@@ -1,14 +1,16 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Chat, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import type { ChatMessage } from '../types';
-import { SendIcon, RestartIcon } from './icons/Icons';
+import type { ChatMessage, User } from '../types';
+import { SendIcon, RestartIcon, LogoutIcon } from './icons/Icons';
 
 interface ChatScreenProps {
+  user: User | null;
   characterImageUrl: string;
   systemInstruction: string;
   initialMessages: ChatMessage[];
   onRestart: () => void;
+  onLogout: () => void;
 }
 
 const API_KEY = process.env.API_KEY;
@@ -28,12 +30,13 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-// FIX: Correctly type the component with React.FC<ChatScreenProps> to accept props.
 const ChatScreen: React.FC<ChatScreenProps> = ({
+  user,
   characterImageUrl,
   systemInstruction,
   initialMessages,
   onRestart,
+  onLogout,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -170,13 +173,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         <p className="text-[#7A7C8B] mt-2 text-lg text-center">
           언제나 네 곁에서 이야기를 들어줄게.
         </p>
-        <button
-          onClick={onRestart}
-          className="mt-8 flex items-center gap-2 bg-gray-100 border border-gray-200 hover:bg-gray-200 text-[#3D405B] text-lg py-2 px-5 rounded-full transition-colors"
-        >
-          <RestartIcon />
-          다시 시작하기
-        </button>
+        <div className="mt-8 flex items-center space-x-4">
+            <button
+                onClick={onRestart}
+                className="flex items-center gap-2 bg-gray-100 border border-gray-200 hover:bg-gray-200 text-[#3D405B] text-lg py-2 px-5 rounded-full transition-colors"
+            >
+                <RestartIcon />
+                다시 시작하기
+            </button>
+            <button
+                onClick={onLogout}
+                className="flex items-center gap-2 bg-gray-100 border border-gray-200 hover:bg-gray-200 text-[#3D405B] text-lg py-2 px-5 rounded-full transition-colors"
+            >
+                <LogoutIcon />
+                로그아웃
+            </button>
+        </div>
       </div>
       <div className="flex flex-col w-full md:w-2/3 h-screen">
         <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
@@ -184,9 +196,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
                 <img src={characterImageUrl} alt="Persona" className="w-12 h-12 rounded-full object-cover" />
                 <h2 className="text-2xl text-[#3D405B]">나의 에고</h2>
             </div>
-            <button onClick={onRestart} className="p-2 text-gray-500 hover:text-[#3D405B]">
-                <RestartIcon />
-            </button>
+            <div className="flex items-center gap-2">
+                <button onClick={onRestart} className="p-2 text-gray-500 hover:text-[#3D405B]">
+                    <RestartIcon />
+                </button>
+                <button onClick={onLogout} className="p-2 text-gray-500 hover:text-[#3D405B]">
+                    <LogoutIcon />
+                </button>
+            </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
@@ -233,6 +250,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
                         onSubmit={handleSendMessage}
                         className="flex items-center gap-4"
                     >
+                         {user && <img src={user.picture} alt="My Avatar" className="w-10 h-10 rounded-full object-cover" />}
                         <input
                             type="text"
                             value={input}

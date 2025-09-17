@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import type { PersonaData } from '../types';
+import type { PersonaData, User } from '../types';
 import { ALL_KEYWORDS } from '../constants';
 
 interface PersonaCreationProps {
+  user: User | null;
   onSubmit: (data: PersonaData) => void;
   error: string | null;
 }
@@ -37,7 +38,7 @@ const FormField: React.FC<FormFieldProps> = ({ id, label, value, onChange, maxLe
   </div>
 );
 
-const PersonaCreation: React.FC<PersonaCreationProps> = ({ onSubmit, error }) => {
+const PersonaCreation: React.FC<PersonaCreationProps> = ({ user, onSubmit, error }) => {
   const [formData, setFormData] = useState<Omit<PersonaData, 'keywords'>>({
     personality: '',
     tone: '',
@@ -88,7 +89,7 @@ const PersonaCreation: React.FC<PersonaCreationProps> = ({ onSubmit, error }) =>
     <div className="w-full max-w-4xl p-4 md:p-8">
       <div className="text-center mb-10">
         <h1 className="text-6xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#FF8FAB] to-[#A2D2FF]">
-          에고고
+          {user ? `${user.name}님의 에고고` : '에고고'}
         </h1>
         <p className="text-[#7A7C8B] mt-3 text-xl">AI 페르소나와 대화하며 나를 발견하는 시간</p>
       </div>
