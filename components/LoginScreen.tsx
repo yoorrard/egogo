@@ -28,37 +28,64 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const signInButtonRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (typeof google === 'undefined') {
-            console.error("Google Identity Services script not loaded.");
-            return;
-        }
-
-        // IMPORTANT: Replace with your actual Google Client ID
-        const GOOGLE_CLIENT_ID = "406527223943-unl6afnco1as8mnd9gvvfoisefvecr5k.apps.googleusercontent.com";
-        
-        google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: (response) => {
-                const credential = response.credential;
-                if (credential) {
-                    const userData = parseJwt(credential);
-                    if (userData) {
-                        onLoginSuccess({
-                            name: userData.name,
-                            email: userData.email,
-                            picture: userData.picture,
-                        });
-                    }
+        const handleCredentialResponse = (response: any) => {
+            const credential = response.credential;
+            if (credential) {
+                const userData = parseJwt(credential);
+                if (userData) {
+                    onLoginSuccess({
+                        name: userData.name,
+                        email: userData.email,
+                        picture: userData.picture,
+                    });
                 }
-            },
-        });
+            }
+        };
+
+        const initializeGsi = () => {
+            if (typeof google === 'undefined' || !signInButtonRef.current) {
+                console.error("Google Identity Services not available or button not rendered.");
+                return;
+            }
+            
+            const GOOGLE_CLIENT_ID = "406527223943-unl6afnco1as8mnd9gvvfoisefvecr5k.apps.googleusercontent.com";
         
-        if (signInButtonRef.current) {
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleCredentialResponse,
+            });
+            
             google.accounts.id.renderButton(
                 signInButtonRef.current,
                 { theme: "outline", size: "large", text: "signin_with", shape: "pill", width: "300" }
             );
+        };
+        
+        // Check if the script is already loaded
+        if (typeof google !== 'undefined') {
+            initializeGsi();
+            return;
         }
+
+        // If not loaded, create and append the script tag
+        const script = document.createElement('script');
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.onload = initializeGsi;
+        script.onerror = () => {
+            console.error("Google Identity Services script failed to load.");
+        };
+
+        document.body.appendChild(script);
+
+        // Cleanup function to remove the script when the component unmounts
+        return () => {
+            const scriptTag = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+            if (scriptTag) {
+                document.body.removeChild(scriptTag);
+            }
+        };
 
     }, [onLoginSuccess]);
 
