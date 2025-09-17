@@ -1,10 +1,9 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import type { PersonaFormData, User } from '../types';
+import type { PersonaFormData } from '../types';
 import { ALL_KEYWORDS } from '../constants';
 import { BackIcon } from './icons/Icons';
 
 interface PersonaCreationProps {
-  user: User | null;
   onSubmit: (data: PersonaFormData) => void;
   onGoBack: () => void;
   error: string | null;
@@ -40,7 +39,7 @@ const FormField: React.FC<FormFieldProps> = ({ id, label, value, onChange, maxLe
   </div>
 );
 
-const PersonaCreation: React.FC<PersonaCreationProps> = ({ user, onSubmit, onGoBack, error }) => {
+const PersonaCreation: React.FC<PersonaCreationProps> = ({ onSubmit, onGoBack, error }) => {
   const [formData, setFormData] = useState<Omit<PersonaFormData, 'keywords'>>({
     personality: '',
     tone: '',

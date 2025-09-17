@@ -1,4 +1,4 @@
-import type { PersonaFormData, User, UserData, ChatMessage, PersonaInstance } from "../types";
+import type { PersonaFormData, User, UserData, ChatMessage } from "../types";
 
 export const fetchUserData = async (user: User): Promise<UserData> => {
   const response = await fetch('/api/get-user-data', {

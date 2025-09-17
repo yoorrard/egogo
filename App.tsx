@@ -101,7 +101,6 @@ const App: React.FC = () => {
             if (!user) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
             return (
                 <PersonaCreation 
-                    user={user} 
                     onSubmit={handlePersonaCreate} 
                     onGoBack={handleNavigateHome}
                     error={error} 
