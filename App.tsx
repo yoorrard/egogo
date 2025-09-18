@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { User, UserData, PersonaFormData } from './types';
 import LoginScreen from './components/LoginScreen';
 import PersonaCreation from './components/PersonaCreation';
@@ -13,15 +13,9 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('LOGIN');
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isCreatingPersona, setIsCreatingPersona] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if(currentScreen === 'LOGIN') setIsLoading(false)
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [currentScreen]);
 
   const handleLoginSuccess = useCallback(async (loggedInUser: User) => {
     setIsLoading(true);
@@ -47,6 +41,7 @@ const App: React.FC = () => {
 
   const handlePersonaCreate = useCallback(async (formData: PersonaFormData) => {
     if (!user?.email) return;
+    setIsCreatingPersona(true);
     setIsLoading(true);
     setError(null);
     try {
@@ -59,6 +54,7 @@ const App: React.FC = () => {
       setError(errorMessage);
     } finally {
         setIsLoading(false);
+        setIsCreatingPersona(false);
     }
   }, [user]);
 
@@ -73,14 +69,14 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (isLoading) return <LoadingScreen />;
+    if (isLoading) return <LoadingScreen isPersonaCreation={isCreatingPersona} />;
 
     switch (currentScreen) {
         case 'LOGIN':
             return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
         
         case 'HOME':
-            if (!userData) return <LoadingScreen />; 
+            if (!userData) return <LoadingScreen isPersonaCreation={false} />; 
             return (
                 <HomeScreen 
                     userData={userData}
@@ -101,7 +97,7 @@ const App: React.FC = () => {
             );
 
         case 'CHAT':
-            if (!userData || !userData.persona) return <LoadingScreen />;
+            if (!userData || !userData.persona) return <LoadingScreen isPersonaCreation={false} />;
             return (
                 <ChatScreen
                     user={userData.user}

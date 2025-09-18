@@ -109,9 +109,10 @@ export default async function handler(req: Request) {
         const parts = imageGenResponse.candidates?.[0]?.content?.parts;
         if (parts) {
             for (const part of parts) {
-                if (part.inlineData && part.inlineData.mimeType) {
-                    const base64ImageBytes: string = part.inlineData.data;
-                    imageUrl = `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
+                const inlineData = part.inlineData;
+                if (inlineData && inlineData.mimeType && inlineData.data) {
+                    const base64ImageBytes: string = inlineData.data;
+                    imageUrl = `data:${inlineData.mimeType};base64,${base64ImageBytes}`;
                     break;
                 }
             }
