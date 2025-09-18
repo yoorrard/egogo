@@ -1,10 +1,6 @@
 import { redis } from '../lib/redis';
 import type { UserData } from '../types';
 
-export const config = {
-  runtime: 'edge',
-};
-
 const MAX_HISTORY_LENGTH = 50;
 
 export default async function handler(req: Request) {

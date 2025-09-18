@@ -27,7 +27,8 @@ const App: React.FC = () => {
         setCurrentScreen('HOME');
     } catch (err) {
         console.error("Login Error:", err);
-        setError("데이터를 불러오는데 실패했어요. 새로고침 해주세요.");
+        const errorMessage = (err as Error).message || "데이터를 불러오는데 실패했어요. 새로고침 해주세요.";
+        setError(errorMessage);
         // Stay on LOGIN screen if fetch fails
     } finally {
         setIsLoading(false);

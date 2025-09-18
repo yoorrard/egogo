@@ -7,7 +7,12 @@ export const fetchUserData = async (user: User): Promise<UserData> => {
     body: JSON.stringify(user),
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch user data.");
+    try {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch user data.");
+    } catch (e) {
+        throw new Error(response.statusText || "An unknown error occurred while fetching user data.");
+    }
   }
   return response.json();
 };

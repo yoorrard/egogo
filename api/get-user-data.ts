@@ -1,10 +1,6 @@
 import { redis } from '../lib/redis';
 import type { User, UserData } from '../types';
 
-export const config = {
-  runtime: 'edge',
-};
-
 const DAILY_ENERGY = 20;
 const RECHARGE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -70,7 +66,8 @@ export default async function handler(req: Request) {
 
   } catch (error) {
     console.error("Error in get-user-data function:", error);
-    return new Response(JSON.stringify({ error: 'Failed to get user data.' }), {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred.';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
