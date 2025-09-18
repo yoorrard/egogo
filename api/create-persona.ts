@@ -1,5 +1,6 @@
 import { GoogleGenAI, Modality, GenerateContentResponse } from "@google/genai";
-import { kv } from '@vercel/kv';
+import { redis } from '../lib/redis';
+import { put } from '@vercel/blob';
 import type { PersonaFormData, UserData, ChatMessage, PersonaInstance } from "../types";
 
 const API_KEY = process.env.API_KEY;
@@ -88,7 +89,7 @@ export default async function handler(req: Request) {
             return new Response(JSON.stringify({ error: 'User email is required.' }), { status: 400 });
         }
         
-        let userData: UserData | null = await kv.get(userEmail);
+        let userData: UserData | null = await redis.get(userEmail);
 
         if (!userData) {
             return new Response(JSON.stringify({ error: 'User data not found. Please log in again.' }), { status: 404 });
@@ -112,7 +113,21 @@ export default async function handler(req: Request) {
                 const inlineData = part.inlineData;
                 if (inlineData && inlineData.mimeType && inlineData.data) {
                     const base64ImageBytes: string = inlineData.data;
-                    imageUrl = `data:${inlineData.mimeType};base64,${base64ImageBytes}`;
+                    
+                    // Convert base64 to a Buffer. Note: In Edge Functions, Buffer is available.
+                    const imageBuffer = Buffer.from(base64ImageBytes, 'base64');
+                    
+                    // Create a unique filename
+                    const filename = `persona-images/${userEmail.split('@')[0]}-${Date.now()}.png`;
+                    
+                    // Upload to Vercel Blob
+                    const blob = await put(filename, imageBuffer, {
+                      access: 'public',
+                      contentType: inlineData.mimeType,
+                    });
+                    
+                    // Use the returned public URL
+                    imageUrl = blob.url;
                     break;
                 }
             }
@@ -147,7 +162,7 @@ export default async function handler(req: Request) {
 
         userData.persona = newPersonaInstance;
 
-        await kv.set(userEmail, userData);
+        await redis.set(userEmail, userData);
         
         const responseBody = JSON.stringify(userData);
 

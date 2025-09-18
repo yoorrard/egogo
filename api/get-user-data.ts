@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { redis } from '../lib/redis';
 import type { User, UserData } from '../types';
 
 export const config = {
@@ -31,7 +31,7 @@ export default async function handler(req: Request) {
       return new Response(JSON.stringify({ error: 'User email is required.' }), { status: 400 });
     }
 
-    const rawData: unknown = await kv.get(user.email);
+    const rawData: unknown = await redis.get(user.email);
     let userData: UserData | null = null;
     const now = Date.now();
     
@@ -40,7 +40,7 @@ export default async function handler(req: Request) {
         userData = rawData;
     } else if (rawData) {
         // Data exists but is malformed. Log it and treat as a new user.
-        console.warn('Malformed user data found in KV store for user:', user.email);
+        console.warn('Malformed user data found in Redis for user:', user.email);
     }
 
     if (!userData) {
@@ -61,7 +61,7 @@ export default async function handler(req: Request) {
       userData.user = user;
     }
 
-    await kv.set(user.email, userData);
+    await redis.set(user.email, userData);
 
     return new Response(JSON.stringify(userData), {
       status: 200,

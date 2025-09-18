@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { redis } from '../lib/redis';
 import type { UserData } from '../types';
 
 export const config = {
@@ -19,7 +19,7 @@ export default async function handler(req: Request) {
       return new Response(JSON.stringify({ error: 'userEmail, personaId, and chatHistory are required.' }), { status: 400 });
     }
 
-    let userData: UserData | null = await kv.get(userEmail);
+    let userData: UserData | null = await redis.get(userEmail);
 
     if (!userData) {
       return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 });
@@ -38,7 +38,7 @@ export default async function handler(req: Request) {
     
     userData.persona.chatHistory = updatedHistory;
 
-    await kv.set(userEmail, userData);
+    await redis.set(userEmail, userData);
 
     return new Response(JSON.stringify({ success: true, message: 'Chat history saved.' }), {
       status: 200,

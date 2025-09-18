@@ -1,5 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { kv } from '@vercel/kv';
+import { redis } from '../lib/redis';
 import type { ChatMessage, UserData } from '../types';
 
 const API_KEY = process.env.API_KEY;
@@ -33,7 +33,7 @@ export default async function handler(req: Request) {
             return new Response(JSON.stringify({ error: 'User email and personaId are required.' }), { status: 400 });
         }
         
-        let userData: UserData | null = await kv.get(userEmail);
+        let userData: UserData | null = await redis.get(userEmail);
         if (!userData) {
             return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 });
         }
@@ -48,7 +48,7 @@ export default async function handler(req: Request) {
         }
 
         userData.chatEnergy -= 1;
-        await kv.set(userEmail, userData);
+        await redis.set(userEmail, userData);
 
         const contents = history.map((msg: ChatMessage) => ({
             role: msg.sender === 'user' ? 'user' : 'model',
