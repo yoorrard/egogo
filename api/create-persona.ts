@@ -106,11 +106,14 @@ export default async function handler(req: Request) {
         });
 
         let imageUrl = '';
-        for (const part of imageGenResponse.candidates[0].content.parts) {
-            if (part.inlineData) {
-                const base64ImageBytes: string = part.inlineData.data;
-                imageUrl = `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
-                break;
+        const parts = imageGenResponse.candidates?.[0]?.content?.parts;
+        if (parts) {
+            for (const part of parts) {
+                if (part.inlineData && part.inlineData.mimeType) {
+                    const base64ImageBytes: string = part.inlineData.data;
+                    imageUrl = `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
+                    break;
+                }
             }
         }
 

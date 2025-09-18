@@ -1,5 +1,5 @@
 import { kv } from '@vercel/kv';
-import type { UserData, ChatMessage } from '../types';
+import type { UserData } from '../types';
 
 export const config = {
   runtime: 'edge',
