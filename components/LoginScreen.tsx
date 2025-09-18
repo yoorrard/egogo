@@ -7,6 +7,7 @@ declare const google: any;
 
 interface LoginScreenProps {
     onLoginSuccess: (user: User) => void;
+    error: string | null;
 }
 
 // A simple JWT parser
@@ -24,7 +25,7 @@ const parseJwt = (token: string) => {
     }
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, error }) => {
     const signInButtonRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -79,25 +80,27 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         document.body.appendChild(script);
 
-        // Cleanup function to remove the script when the component unmounts
-        return () => {
-            const scriptTag = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-            if (scriptTag) {
-                document.body.removeChild(scriptTag);
-            }
-        };
+        // We removed the cleanup function that removes the script.
+        // The script should be loaded once and persist for the application's lifecycle
+        // to ensure stability, especially after logout/login cycles.
 
     }, [onLoginSuccess]);
 
     return (
         <div className="w-full max-w-md mx-auto text-center flex flex-col items-center justify-center h-screen p-4">
-             <div className="mb-12">
+             <div className="mb-8">
                 <h1 className="text-7xl md:text-8xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#FF8FAB] to-[#A2D2FF]">
                     에고고
                 </h1>
                 <p className="text-[#7A7C8B] mt-4 text-2xl">AI 페르소나와 대화하며 나를 발견하는 시간</p>
             </div>
             
+            {error && (
+                <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-lg text-center mb-6 text-lg w-full">
+                    {error}
+                </div>
+            )}
+
             <div ref={signInButtonRef} id="googleSignInButton"></div>
             
             <p className="text-xs text-gray-400 mt-12 px-4">

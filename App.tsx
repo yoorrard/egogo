@@ -19,6 +19,7 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = useCallback(async (loggedInUser: User) => {
     setIsLoading(true);
+    setError(null); // Reset error on new login attempt
     setUser(loggedInUser);
     try {
         const data = await fetchUserData(loggedInUser);
@@ -27,6 +28,7 @@ const App: React.FC = () => {
     } catch (err) {
         console.error("Login Error:", err);
         setError("데이터를 불러오는데 실패했어요. 새로고침 해주세요.");
+        // Stay on LOGIN screen if fetch fails
     } finally {
         setIsLoading(false);
     }
@@ -73,7 +75,7 @@ const App: React.FC = () => {
 
     switch (currentScreen) {
         case 'LOGIN':
-            return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+            return <LoginScreen onLoginSuccess={handleLoginSuccess} error={error} />;
         
         case 'HOME':
             if (!userData) return <LoadingScreen isPersonaCreation={false} />; 
@@ -87,7 +89,7 @@ const App: React.FC = () => {
             );
             
         case 'CREATE_PERSONA':
-            if (!user) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+            if (!user) return <LoginScreen onLoginSuccess={handleLoginSuccess} error={error} />;
             return (
                 <PersonaCreation 
                     onSubmit={handlePersonaCreate} 
@@ -110,7 +112,7 @@ const App: React.FC = () => {
             );
         
         default:
-             return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+             return <LoginScreen onLoginSuccess={handleLoginSuccess} error={error} />;
     }
   };
 
