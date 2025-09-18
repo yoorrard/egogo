@@ -1,4 +1,4 @@
-import { redis } from '../lib/redis';
+import { getRedisClient } from '../lib/redis';
 import type { User, UserData } from '../types';
 
 const DAILY_ENERGY = 20;
@@ -22,9 +22,7 @@ export default async function handler(req: Request) {
   }
 
   try {
-    if (!redis) {
-      throw new Error('Database connection is not configured. Please check server environment variables.');
-    }
+    const redis = getRedisClient(); // Get the client safely within the handler
 
     const user: User = await req.json();
     if (!user || !user.email) {

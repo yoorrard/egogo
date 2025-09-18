@@ -1,4 +1,4 @@
-import { redis } from '../lib/redis';
+import { getRedisClient } from '../lib/redis';
 import type { UserData } from '../types';
 
 const MAX_HISTORY_LENGTH = 50;
@@ -9,9 +9,7 @@ export default async function handler(req: Request) {
   }
 
   try {
-    if (!redis) {
-      throw new Error('Database connection is not configured. Please check server environment variables.');
-    }
+    const redis = getRedisClient(); // Get the client safely within the handler
 
     const { userEmail, personaId, chatHistory } = await req.json();
 
@@ -47,7 +45,8 @@ export default async function handler(req: Request) {
 
   } catch (error) {
     console.error("Error in save-chat-history function:", error);
-    return new Response(JSON.stringify({ error: 'Failed to save chat history.' }), {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to save chat history.';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

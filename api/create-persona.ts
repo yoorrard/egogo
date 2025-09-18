@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, GenerateContentResponse } from "@google/genai";
-import { redis } from '../lib/redis';
+import { getRedisClient } from '../lib/redis';
 import { put } from '@vercel/blob';
 import type { PersonaFormData, UserData, ChatMessage, PersonaInstance } from "../types";
 
@@ -70,9 +70,7 @@ export default async function handler(req: Request) {
     }
     
     try {
-        if (!redis) {
-            throw new Error('Database connection is not configured. Please check server environment variables.');
-        }
+        const redis = getRedisClient(); // Get the client safely within the handler
 
         const API_KEY = process.env.API_KEY;
         if (!API_KEY) {
