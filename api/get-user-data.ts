@@ -22,6 +22,10 @@ export default async function handler(req: Request) {
   }
 
   try {
+    if (!redis) {
+      throw new Error('Database connection is not configured. Please check server environment variables.');
+    }
+
     const user: User = await req.json();
     if (!user || !user.email) {
       return new Response(JSON.stringify({ error: 'User email is required.' }), { status: 400 });

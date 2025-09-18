@@ -9,6 +9,10 @@ export default async function handler(req: Request) {
   }
 
   try {
+    if (!redis) {
+      throw new Error('Database connection is not configured. Please check server environment variables.');
+    }
+
     const { userEmail, personaId, chatHistory } = await req.json();
 
     if (!userEmail || !personaId || !chatHistory) {

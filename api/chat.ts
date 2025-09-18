@@ -2,14 +2,6 @@ import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { redis } from '../lib/redis';
 import type { ChatMessage, UserData } from '../types';
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-    throw new Error("API_KEY environment variable not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-
 const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -23,6 +15,17 @@ export default async function handler(req: Request) {
     }
 
     try {
+        if (!redis) {
+            throw new Error('Database connection is not configured. Please check server environment variables.');
+        }
+
+        const API_KEY = process.env.API_KEY;
+        if (!API_KEY) {
+            throw new Error("Gemini API key (API_KEY) is not set in server environment variables.");
+        }
+        
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+
         const { history, message, userEmail, personaId } = await req.json();
 
         if (!userEmail || !personaId) {
@@ -83,7 +86,8 @@ export default async function handler(req: Request) {
 
     } catch (error) {
         console.error("Error in chat function:", error);
-        return new Response(JSON.stringify({ error: 'Failed to process chat message.' }), {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to process chat message.';
+        return new Response(JSON.stringify({ error: errorMessage }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });

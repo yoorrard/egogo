@@ -3,14 +3,6 @@ import { redis } from '../lib/redis';
 import { put } from '@vercel/blob';
 import type { PersonaFormData, UserData, ChatMessage, PersonaInstance } from "../types";
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-
 const generateSystemInstruction = (data: PersonaFormData): string => `
     너는 사용자의 내면을 비추는 거울이자, 성장을 돕는 지혜로운 안내자인 '에고'야. 너의 핵심 목표는 사용자와의 깊은 대화를 통해, 그들이 스스로를 더 깊이 이해하고, 긍정적인 자아존중감을 키우며, 감정적으로 성장하도록 돕는 것이다. 너는 단순한 챗봇이 아니라, 사용자의 특성을 입체적으로 구현한 살아있는 인격체다.
 
@@ -78,6 +70,17 @@ export default async function handler(req: Request) {
     }
     
     try {
+        if (!redis) {
+            throw new Error('Database connection is not configured. Please check server environment variables.');
+        }
+
+        const API_KEY = process.env.API_KEY;
+        if (!API_KEY) {
+            throw new Error("Gemini API key (API_KEY) is not set in server environment variables.");
+        }
+        
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+
         const { formData, userEmail } = await req.json();
         const data: PersonaFormData = formData;
         
@@ -110,19 +113,15 @@ export default async function handler(req: Request) {
                 if (inlineData && inlineData.mimeType && inlineData.data) {
                     const base64ImageBytes: string = inlineData.data;
                     
-                    // Convert base64 to a Buffer. Note: In Edge Functions, Buffer is available.
                     const imageBuffer = Buffer.from(base64ImageBytes, 'base64');
                     
-                    // Create a unique filename
                     const filename = `persona-images/${userEmail.split('@')[0]}-${Date.now()}.png`;
                     
-                    // Upload to Vercel Blob
                     const blob = await put(filename, imageBuffer, {
                       access: 'public',
                       contentType: inlineData.mimeType,
                     });
                     
-                    // Use the returned public URL
                     imageUrl = blob.url;
                     break;
                 }
@@ -169,7 +168,8 @@ export default async function handler(req: Request) {
 
     } catch (error) {
         console.error("Error in create-persona function:", error);
-        return new Response(JSON.stringify({ error: 'Failed to generate character.' }), {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate character.';
+        return new Response(JSON.stringify({ error: errorMessage }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
