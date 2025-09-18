@@ -17,10 +17,6 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
 ];
 
-export const config = {
-  runtime: 'edge',
-};
-
 export default async function handler(req: Request) {
     if (req.method !== 'POST') {
         return new Response('Method Not Allowed', { status: 405 });

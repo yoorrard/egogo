@@ -71,11 +71,7 @@ const generateImagePrompt = (data: PersonaFormData): string => `
     `;
 
 
-// Vercel Edge Function handler
-export const config = {
-  runtime: 'edge',
-};
-
+// Vercel Serverless Function handler
 export default async function handler(req: Request) {
     if (req.method !== 'POST') {
         return new Response('Method Not Allowed', { status: 405 });
