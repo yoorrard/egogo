@@ -10,8 +10,6 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-const MAX_PERSONAS_PER_USER = 2;
-
 const generateSystemInstruction = (data: PersonaFormData): string => `
     너는 사용자의 내면을 비추는 거울이자, 성장을 돕는 지혜로운 안내자인 '에고'야. 너의 핵심 목표는 사용자와의 깊은 대화를 통해, 그들이 스스로를 더 깊이 이해하고, 긍정적인 자아존중감을 키우며, 감정적으로 성장하도록 돕는 것이다. 너는 단순한 챗봇이 아니라, 사용자의 특성을 입체적으로 구현한 살아있는 인격체다.
 
@@ -95,10 +93,6 @@ export default async function handler(req: Request) {
         if (!userData) {
             return new Response(JSON.stringify({ error: 'User data not found. Please log in again.' }), { status: 404 });
         }
-
-        if (userData.personas.length >= MAX_PERSONAS_PER_USER) {
-            return new Response(JSON.stringify({ error: `You can only create up to ${MAX_PERSONAS_PER_USER} egos.` }), { status: 403 });
-        }
         
         const systemInstruction = generateSystemInstruction(data);
         const imagePrompt = generateImagePrompt(data);
@@ -147,7 +141,7 @@ export default async function handler(req: Request) {
             chatHistory: [initialGreeting],
         };
 
-        userData.personas.push(newPersonaInstance);
+        userData.persona = newPersonaInstance;
 
         await kv.set(userEmail, userData);
         

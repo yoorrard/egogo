@@ -13,7 +13,7 @@ const TypingIndicator: React.FC = () => (
 
 interface ChatScreenProps {
   user: User;
-  activePersona: PersonaInstance;
+  persona: PersonaInstance;
   setUserData: React.Dispatch<React.SetStateAction<UserData | null>>;
   onGoHome: () => void;
   onLogout: () => void;
@@ -22,17 +22,17 @@ interface ChatScreenProps {
 
 const ChatScreen: React.FC<ChatScreenProps> = ({
   user,
-  activePersona,
+  persona,
   setUserData,
   onGoHome,
   onLogout,
   chatEnergy,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(activePersona.chatHistory);
+  const [messages, setMessages] = useState<ChatMessage[]>(persona.chatHistory);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const characterImageUrl = activePersona.persona.characterImageUrl || '';
+  const characterImageUrl = persona.persona.characterImageUrl || '';
   const limitReached = chatEnergy <= 0;
 
   const scrollToBottom = () => {
@@ -43,10 +43,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  // When activePersona changes, reset the chat
+  // When persona changes, reset the chat
   useEffect(() => {
-    setMessages(activePersona.chatHistory);
-  }, [activePersona]);
+    setMessages(persona.chatHistory);
+  }, [persona]);
 
   const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +83,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
          body: JSON.stringify({
            history: previousMessages.slice(0, -1),
            message: currentInput,
-           personaId: activePersona.id, // Send active persona ID
+           personaId: persona.id,
            userEmail: user.email,
          }),
        });
@@ -120,14 +120,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
          });
        }
        
-       // After stream is complete, save the history for the correct persona
-       await saveChatHistory(user.email, activePersona.id, finalMessages);
+       await saveChatHistory(user.email, persona.id, finalMessages);
        setUserData(prev => {
-           if (!prev) return null;
-           const updatedPersonas = prev.personas.map(p => 
-               p.id === activePersona.id ? { ...p, chatHistory: finalMessages } : p
-           );
-           return { ...prev, personas: updatedPersonas };
+           if (!prev || !prev.persona) return null;
+           const updatedPersona = { ...prev.persona, chatHistory: finalMessages };
+           return { ...prev, persona: updatedPersona };
        });
 
     } catch (error) {
@@ -141,7 +138,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, limitReached, messages, user, activePersona, setUserData]);
+  }, [input, isLoading, limitReached, messages, user, persona, setUserData]);
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FA]">

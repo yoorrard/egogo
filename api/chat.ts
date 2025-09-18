@@ -38,8 +38,8 @@ export default async function handler(req: Request) {
             return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 });
         }
 
-        const activePersona = userData.personas.find(p => p.id === personaId);
-        if (!activePersona) {
+        const activePersona = userData.persona;
+        if (!activePersona || activePersona.id !== personaId) {
             return new Response(JSON.stringify({ error: 'Persona not found.' }), { status: 404 });
         }
 

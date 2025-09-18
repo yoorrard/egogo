@@ -25,9 +25,7 @@ export default async function handler(req: Request) {
       return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 });
     }
 
-    const personaIndex = userData.personas.findIndex(p => p.id === personaId);
-
-    if (personaIndex === -1) {
+    if (!userData.persona || userData.persona.id !== personaId) {
       return new Response(JSON.stringify({ error: 'Persona not found.' }), { status: 404 });
     }
 
@@ -38,7 +36,7 @@ export default async function handler(req: Request) {
       updatedHistory = updatedHistory.slice(-MAX_HISTORY_LENGTH);
     }
     
-    userData.personas[personaIndex].chatHistory = updatedHistory;
+    userData.persona.chatHistory = updatedHistory;
 
     await kv.set(userEmail, userData);
 

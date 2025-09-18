@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { User, UserData, PersonaFormData, PersonaInstance } from './types';
+import type { User, UserData, PersonaFormData } from './types';
 import LoginScreen from './components/LoginScreen';
 import PersonaCreation from './components/PersonaCreation';
 import LoadingScreen from './components/LoadingScreen';
@@ -12,13 +12,11 @@ type AppScreen = 'LOGIN' | 'HOME' | 'CREATE_PERSONA' | 'CHAT';
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [activePersona, setActivePersona] = useState<PersonaInstance | null>(null);
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('LOGIN');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
-    // Show loading screen briefly on initial load before login screen
     const timer = setTimeout(() => {
       if(currentScreen === 'LOGIN') setIsLoading(false)
     }, 500);
@@ -43,7 +41,6 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setUser(null);
     setUserData(null);
-    setActivePersona(null);
     setError(null);
     setCurrentScreen('LOGIN');
   };
@@ -55,7 +52,7 @@ const App: React.FC = () => {
     try {
       const updatedUserData = await createPersona(formData, user.email);
       setUserData(updatedUserData);
-      setCurrentScreen('HOME');
+      setCurrentScreen('CHAT'); // Go directly to chat after creation
     } catch (err) {
       const errorMessage = (err as Error).message || "페르소나 생성에 실패했어요. 잠시 후 다시 시도해주세요.";
       console.error("Error creating persona:", err);
@@ -65,17 +62,13 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  const handleSelectPersona = useCallback((personaId: number) => {
-    if (!userData) return;
-    const selected = userData.personas.find(p => p.id === personaId);
-    if (selected) {
-        setActivePersona(selected);
+  const handleStartChat = useCallback(() => {
+    if (userData?.persona) {
         setCurrentScreen('CHAT');
     }
   }, [userData]);
   
   const handleNavigateHome = () => {
-    setActivePersona(null);
     setCurrentScreen('HOME');
   };
 
@@ -87,11 +80,11 @@ const App: React.FC = () => {
             return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
         
         case 'HOME':
-            if (!userData) return <LoadingScreen />; // Should not happen if logic is correct
+            if (!userData) return <LoadingScreen />; 
             return (
                 <HomeScreen 
                     userData={userData}
-                    onSelectPersona={handleSelectPersona}
+                    onStartChat={handleStartChat}
                     onCreatePersona={() => setCurrentScreen('CREATE_PERSONA')}
                     onLogout={handleLogout}
                 />
@@ -108,11 +101,11 @@ const App: React.FC = () => {
             );
 
         case 'CHAT':
-            if (!userData || !activePersona) return <LoadingScreen />;
+            if (!userData || !userData.persona) return <LoadingScreen />;
             return (
                 <ChatScreen
                     user={userData.user}
-                    activePersona={activePersona}
+                    persona={userData.persona}
                     setUserData={setUserData}
                     onGoHome={handleNavigateHome}
                     onLogout={handleLogout}

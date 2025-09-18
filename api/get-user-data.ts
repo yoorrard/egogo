@@ -26,7 +26,7 @@ export default async function handler(req: Request) {
       // First time user, create new record
       userData = {
         user: user,
-        personas: [], // Initialize with an empty array for personas
+        persona: null,
         chatEnergy: DAILY_ENERGY,
         lastRechargeTimestamp: now,
       };

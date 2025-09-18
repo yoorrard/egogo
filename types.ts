@@ -39,7 +39,7 @@ export interface PersonaInstance {
 // The main data structure for a user, stored in the database.
 export interface UserData {
   user: User;
-  personas: PersonaInstance[];
+  persona: PersonaInstance | null;
   chatEnergy: number;
   lastRechargeTimestamp: number; // Unix timestamp in milliseconds
 }
